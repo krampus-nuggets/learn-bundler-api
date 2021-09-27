@@ -1,0 +1,9 @@
+.idea
+Include
+Lib
+Scripts
+export
+__pycache__
+pyvenv.cfg
+*.png
+*.jpg

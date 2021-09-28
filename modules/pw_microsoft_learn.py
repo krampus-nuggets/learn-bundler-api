@@ -109,18 +109,50 @@ def merge_image_files(byte_image_list):
     return init_image
 
 def ms_learn(module_url, export_dir):
-    b_dir = build_dir(module_url, export_dir)
-    m_name = module_name(module_url)
-    u_list = unit_list(module_url)
-
+    project_name = ""
+    project_dir = f"{export_dir}\\"
+    unit_urls = []
     byte_images = []
 
-    for u in range(len(u_list)):
-        image_bytes = screenshot_unit(u_list[u])
-        byte_images.append(image_bytes)
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        context = browser.new_context(
+            user_agent=config["user-agent"],
+            viewport=config["viewport"],
+            color_scheme=config["color-scheme"]
+        )
+        page = context.new_page()
+        page.goto(module_url)
 
+        # JOB: Extract project name from header + Build output directory from project name
+        header_element = page.query_selector("#main > div.modular-content-container > div > div > div > div > div > div.columns.is-mobile.is-gapless.has-margin-bottom-none > div > h1")
+        sanitize_name = str(header_element.inner_text()).lower().replace(" ", "-")
+        project_name = sanitize_name
+        project_dir = project_dir + project_name
+
+        # JOB: Required directory check
+        check_dir(project_dir)
+
+        # JOB: Build list of unit URLs
+        anchor_list = page.query_selector("#unit-list").query_selector_all("a")
+
+        for a in range(len(anchor_list)):
+            href = anchor_list[a].get_attribute("href")
+            merged_url = str(module_url) + str(href)
+            unit_urls.append(merged_url)
+
+        # JOB: Save screenshot as byte_array + Create list of byte_array images
+        for unit in range(len(unit_urls)):
+            page.goto(unit_urls[unit])
+            element_handle = page.query_selector("#unit-inner-section")
+            image_bytes = element_handle.screenshot()
+            byte_images.append(image_bytes)
+
+        browser.close()
+
+    # JOB: Combine byte_array images + Return image/png save location
     merged_image = Image.open(BytesIO(merge_image_files(byte_images)))
-    save_location = f"{b_dir}\\final.png"
+    save_location = f"{project_dir}\\final.png"
     merged_image.save(save_location, "PNG")
 
     return save_location
